@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root { height: 100%; }
+* { box-sizing: border-box; }
+
+/* CSS containment for message rows — lets the browser skip relayout of the
+ * whole channel when one row changes. */
+.msg-row { contain: layout paint; }

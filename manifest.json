@@ -1,0 +1,83 @@
+{
+  "project": "cowork-chat-teams-like-app",
+  "version": "0.1.0-day1",
+  "started_on": "2026-05-15",
+  "day_1_status": "completed",
+  "day_2_status": "completed",
+  "day_3_status": "completed",
+  "project_status": "complete",
+  "user_plan": "claude_pro",
+  "scope": "lean",
+  "tech_stack": {
+    "desktop_shell": "Tauri 2",
+    "frontend": "React 18 + TypeScript + Vite + Tailwind",
+    "frontend_state": "Zustand + TanStack Query",
+    "frontend_virtualisation": "react-virtuoso",
+    "backend": "Rust + Axum + Tokio",
+    "durable_store": "PostgreSQL",
+    "ephemeral_store": "Redis",
+    "transport": "WebSocket + msgpack",
+    "architecture_backend": "hexagonal",
+    "architecture_frontend": "feature-sliced",
+    "tests": ["cargo test", "vitest", "Playwright"]
+  },
+  "in_scope": [
+    "workspaces", "channels", "1:1 + group DMs", "threads",
+    "reactions", "mentions", "presence", "realtime",
+    "local auth", "system tray", "native notifications",
+    "memory + CPU optimisation"
+  ],
+  "out_of_scope": [
+    "voice/video/screen-share", "calendar/meetings",
+    "file attachments", "full-text search",
+    "SSO/SAML/OIDC", "mobile clients",
+    "compliance hold", "app marketplace"
+  ],
+  "schedule": [
+    {
+      "day": 1,
+      "date": "2026-05-15",
+      "theme": "architecture & design",
+      "chunks": [
+        {"id": "1a", "title": "README + scaffold + PROGRESS + manifest", "status": "completed"},
+        {"id": "1b", "title": "docs/01-architecture.md", "status": "completed"},
+        {"id": "1c", "title": "docs/02-data-model.md + db/schema.sql", "status": "completed"},
+        {"id": "1d", "title": "docs/03-threat-model.md", "status": "completed"},
+        {"id": "1e", "title": "docs/04-realtime-protocol.md", "status": "completed"}
+      ],
+      "estimated_tokens": 44000
+    },
+    {
+      "day": 2,
+      "date": null,
+      "theme": "Rust backend",
+      "chunks": [
+        {"id": "2a", "title": "Cargo workspace + crate layout", "status": "completed"},
+        {"id": "2b", "title": "Domain types", "status": "completed"},
+        {"id": "2c", "title": "Repository layer (sqlx)", "status": "completed"},
+        {"id": "2d", "title": "Auth (argon2 + JWT)", "status": "completed"},
+        {"id": "2e", "title": "REST endpoints", "status": "completed"}
+      ],
+      "estimated_tokens": 70000
+    },
+    {
+      "day": 3,
+      "date": null,
+      "theme": "realtime, frontend, polish, user guide",
+      "chunks": [
+        {"id": "3a", "title": "WS gateway + Redis fan-out", "status": "completed"},
+        {"id": "3b", "title": "Presence service", "status": "completed"},
+        {"id": "3c", "title": "React + Tauri scaffold + auth screens", "status": "completed"},
+        {"id": "3d", "title": "Workspace/channel/message UI", "status": "completed"},
+        {"id": "3e", "title": "Tray + notifications + docker-compose + smoke test + docs/05-user-guide.md + final README pass", "status": "completed"}
+      ],
+      "estimated_tokens": 70000
+    }
+  ],
+  "stop_conditions": {
+    "daily_token_budget": 200000,
+    "working_ceiling_per_day": 240000,
+    "max_errors_before_halt": 2,
+    "rate_limit_cooldown_hours": 6
+  }
+}

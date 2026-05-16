@@ -1,0 +1,124 @@
+-- 0001_initial: schema for Cowork Chat. See db/schema.sql at the repo root
+-- for the canonical reference; this file is the production-applied form.
+
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "citext";
+
+CREATE TABLE users (
+    id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    email          CITEXT      NOT NULL UNIQUE,
+    display_name   TEXT        NOT NULL,
+    password_hash  TEXT        NOT NULL,
+    avatar_url     TEXT,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at     TIMESTAMPTZ
+);
+CREATE INDEX idx_users_active ON users (id) WHERE deleted_at IS NULL;
+
+CREATE TABLE workspaces (
+    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    name        TEXT        NOT NULL,
+    slug        TEXT        NOT NULL UNIQUE,
+    created_by  UUID        NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at  TIMESTAMPTZ
+);
+CREATE INDEX idx_workspaces_active ON workspaces (id) WHERE deleted_at IS NULL;
+
+CREATE TABLE memberships (
+    workspace_id  UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    user_id       UUID NOT NULL REFERENCES users(id)      ON DELETE CASCADE,
+    role          TEXT NOT NULL CHECK (role IN ('owner', 'admin', 'member')),
+    joined_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_read_at  TIMESTAMPTZ,
+    PRIMARY KEY (workspace_id, user_id)
+);
+CREATE INDEX idx_memberships_user ON memberships (user_id);
+
+CREATE TABLE channels (
+    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id  UUID        NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    name          TEXT        NOT NULL,
+    topic         TEXT        NOT NULL DEFAULT '',
+    kind          TEXT        NOT NULL CHECK (kind IN ('public', 'private')),
+    created_by    UUID        NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at    TIMESTAMPTZ
+);
+CREATE UNIQUE INDEX idx_channels_name_per_workspace ON channels (workspace_id, lower(name));
+CREATE INDEX idx_channels_workspace_active ON channels (workspace_id) WHERE deleted_at IS NULL;
+
+CREATE TABLE channel_members (
+    channel_id    UUID NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+    user_id       UUID NOT NULL REFERENCES users(id)    ON DELETE CASCADE,
+    joined_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_read_at  TIMESTAMPTZ,
+    PRIMARY KEY (channel_id, user_id)
+);
+CREATE INDEX idx_channel_members_user ON channel_members (user_id);
+
+CREATE TABLE dm_threads (
+    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    members_hash  TEXT        NOT NULL UNIQUE,
+    created_by    UUID        NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE dm_members (
+    dm_thread_id  UUID NOT NULL REFERENCES dm_threads(id) ON DELETE CASCADE,
+    user_id       UUID NOT NULL REFERENCES users(id)      ON DELETE CASCADE,
+    last_read_at  TIMESTAMPTZ,
+    PRIMARY KEY (dm_thread_id, user_id)
+);
+CREATE INDEX idx_dm_members_user ON dm_members (user_id);
+
+CREATE TABLE messages (
+    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    channel_id    UUID        REFERENCES channels(id)   ON DELETE CASCADE,
+    dm_thread_id  UUID        REFERENCES dm_threads(id) ON DELETE CASCADE,
+    parent_id     UUID        REFERENCES messages(id)   ON DELETE SET NULL,
+    author_id     UUID        NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    body          TEXT        NOT NULL,
+    mentions      UUID[]      NOT NULL DEFAULT '{}',
+    edited_at     TIMESTAMPTZ,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at    TIMESTAMPTZ,
+    CONSTRAINT chk_messages_one_target
+        CHECK ((channel_id IS NOT NULL) <> (dm_thread_id IS NOT NULL))
+);
+CREATE INDEX idx_messages_channel_recent ON messages (channel_id, created_at DESC)
+    WHERE deleted_at IS NULL AND channel_id IS NOT NULL;
+CREATE INDEX idx_messages_dm_recent ON messages (dm_thread_id, created_at DESC)
+    WHERE deleted_at IS NULL AND dm_thread_id IS NOT NULL;
+CREATE INDEX idx_messages_thread ON messages (parent_id, created_at ASC)
+    WHERE deleted_at IS NULL AND parent_id IS NOT NULL;
+CREATE INDEX idx_messages_mentions ON messages USING GIN (mentions);
+CREATE INDEX idx_messages_author_recent ON messages (author_id, created_at DESC)
+    WHERE deleted_at IS NULL;
+
+CREATE TABLE reactions (
+    message_id  UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    user_id     UUID NOT NULL REFERENCES users(id)    ON DELETE CASCADE,
+    emoji       TEXT NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (message_id, user_id, emoji)
+);
+CREATE INDEX idx_reactions_message ON reactions (message_id);
+
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_users_updated_at      BEFORE UPDATE ON users
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER trg_workspaces_updated_at BEFORE UPDATE ON workspaces
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER trg_channels_updated_at   BEFORE UPDATE ON channels
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
